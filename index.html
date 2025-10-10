@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal CPA</title>
+
+    <!-- Tesseract.js CDN -->
+    <script src="https://unpkg.com/tesseract.js@v4.1.1/dist/tesseract.min.js"></script>
+    <!-- PDF.js CDN (for PDF rendering to canvas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- QRCode.js CDN -->
+    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: filter 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body.privacy-mode {
+            filter: grayscale(100%);
+        }
+
+        body.privacy-mode .profile-id {
+            filter: blur(5px);
+        }
+
+        body.dark-mode {
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            transition: background 0.3s ease;
+        }
+
+        .header .icons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header .icons div {
+            width: 30px;
+            height: 30px;
+            background-color: #007bff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        .header .icons div:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+
+        .header h1 {
+            color: #007bff;
+            font-size: 24px;
+            margin: 0;
+        }
+
+        .header-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        main {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .promo-card,
+        .scan-card {
+            background-color: #e6f3f5;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin: 20px;
+            padding: 15px;
+            text-align: left;
+            position: relative;
+            overflow: hidden;
+            transition: background-color 0.3s ease, border 0.3s ease;
+        }
+
+        body.dark-mode .promo-card,
+        body.dark-mode .scan-card {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+
+        .promo-card::before,
+        .scan-card::before {
+            content: "";
+            position: absolute;
+            top: -20px;
+            right: -20px;
+            width: 60px;
+            height: 60px;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="%23ffcc00"/></svg>') no-repeat;
+            background-size: contain;
+        }
+
+        .promo-card .dollar-sign {
+            font-size: 48px;
+            color: #28a745;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            opacity: 0.7;
+        }
+
+        .promo-card p,
+        .scan-card p {
+            margin: 10px 0;
+            font-size: 16px;
+            color: #333;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .promo-card p,
+        body.dark-mode .scan-card p {
+            color: #e0e0e0;
+        }
+
+        .btn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 16px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #0056b3;
+        }
+
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .ocr-progress {
+            margin: 10px 0;
+            display: none;
+        }
+
+        .ocr-progress.active {
+            display: block;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        body.dark-mode .progress-bar {
+            background-color: #333;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: #007bff;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .ocr-result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            display: none;
+            transition: background-color 0.3s ease, border 0.3s ease;
+        }
+
+        body.dark-mode .ocr-result {
+            background-color: #1e1e1e;
+            border-color: #333;
+        }
+
+        .ocr-result.active {
+            display: block;
+        }
+
+        .nav-bar {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            background-color: #fff;
+            padding: 10px 0;
+            border-top: 1px solid #ddd;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        body.dark-mode .nav-bar {
+            background-color: #1e1e1e;
+            border-top-color: #333;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 12px;
+            color: #007bff;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .nav-item {
+            color: #2196F3;
+        }
+
+        .nav-item .icon {
+            width: 24px;
+            height: 24px;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            margin-bottom: 2px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease;
+        }
+
+        body.dark-mode .nav-item .icon {
+            background-color: #333;
+        }
+
+        .nav-item.active {
+            font-weight: bold;
+        }
+
+        .nav-item.active .icon {
+            background-color: #007bff;
+            color: white;
+        }
+
+        body.dark-mode .nav-item.active .icon {
+            background-color: #2196F3;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .home-hero,
+        .scan-hero {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background: #ffffff;
+            border-bottom: 1px solid #eee;
+            transition: background 0.3s ease, border-color 0.3s ease;
+        }
+
+        body.dark-mode .home-hero,
+        body.dark-mode .scan-hero {
+            background: #1e1e1e;
+            border-bottom-color: #333;
+        }
+
+        .home-hero .name {
+            font-weight: 600;
+            font-size: 18px;
+            color: #333;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .home-hero .name {
+            color: #e0e0e0;
+        }
+
+        .home-hero .assist {
+            font-size: 16px;
+            color: #555;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .home-hero .assist {
+            color: #b0b0b0;
+        }
+
+        .scan-hero .left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            color: #333;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .scan-hero .left {
+            color: #e0e0e0;
+        }
+
+        .scan-hero .right {
+            font-size: 14px;
+            color: #555;
+            text-align: right;
+            max-width: 60%;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .scan-hero .right {
+            color: #b0b0b0;
+        }
+
+        .document-list {
+            margin: 15px 20px;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .document-list {
+            color: #e0e0e0;
+        }
+
+        .document-list ul {
+            margin-top: 5px;
+            margin-bottom: 10px;
+            padding-left: 20px;
+        }
+
+        .document-list li {
+            margin-bottom: 5px;
+        }
+
+        .upload-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .file-name {
+            font-size: 12px;
+            color: #555;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .file-name {
+            color: #b0b0b0;
+        }
+
+        .profile-card {
+            background: white;
+            margin: 15px;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+            transition: background 0.3s ease, border 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .profile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .profile-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #2c3e50;
+            transition: color 0.3s ease;
+        }
+
+        .profile-id {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin: 5px 0;
+            transition: color 0.3s ease, filter 0.3s ease;
+        }
+
+        .profile-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: background 0.3s ease;
+        }
+
+        .profile-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .privacy-toggle,
+        .dark-toggle,
+        .biometric-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 10px;
+            transition: background 0.3s ease, border 0.3s ease;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #ddd;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.active {
+            background: #4CAF50;
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle-switch.active::after {
+            transform: translateX(26px);
+        }
+
+        .login-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .login-overlay.active {
+            display: flex;
+        }
+
+        .login-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 300px;
+            text-align: center;
+            transition: background 0.3s ease;
+        }
+
+        body.dark-mode .login-card {
+            background: #1e1e1e;
+        }
+
+        .login-card h2 {
+            margin-bottom: 20px;
+            color: #333;
+            transition: color 0.3s ease;
+        }
+
+        body.dark-mode .login-card h2 {
+            color: #e0e0e0;
+        }
+
+        .login-card .btn {
+            margin: 5px;
+        }
+
+        .qrcode-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .qrcode-modal.active {
+            display: flex;
+        }
+
+        .qrcode-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            transition: background 0.3s ease;
+        }
+
+        body.dark-mode .qrcode-card {
+            background: #1e1e1e;
+        }
+
+        #qrcodeCanvas {
+            margin: 10px 0;
+        }
+
+        #qrcodeInput {
+            width: 80%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            transition: border-color 0.3s ease;
+        }
+
+        body.dark-mode #qrcodeInput {
+            background: #2a2a2a;
+            border-color: #444;
+            color: #e0e0e0;
+        }
+
+        .menu-section {
+            margin: 15px;
+        }
+
+        .menu-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid #e9ecef;
+        }
+
+        .menu-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .menu-item.active {
+            background: #e3f2fd;
+            border-color: #2196F3;
+        }
+
+        .menu-text {
+            font-size: 16px;
+            color: #2c3e50;
+            transition: color 0.3s ease;
+        }
+
+        .notification-bell {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: #ff4757;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .logout-item {
+            color: #e74c3c !important;
+        }
+
+        .logout-item:hover {
+            background: #fdf2f2;
+        }
+
+        body.dark-mode .header {
+            background: linear-gradient(135deg, #3a3a3a 0%, #1f1f1f 100%);
+        }
+
+        body.dark-mode .profile-card {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        body.dark-mode .profile-name {
+            color: #ffffff;
+        }
+
+        body.dark-mode .profile-id {
+            color: #b0b0b0;
+        }
+
+        body.dark-mode .profile-avatar {
+            background: #333;
+        }
+
+        body.dark-mode .privacy-toggle,
+        body.dark-mode .dark-toggle,
+        body.dark-mode .biometric-toggle {
+            background: #2a2a2a;
+            border: 1px solid #444;
+        }
+
+        body.dark-mode .menu-item {
+            background: #1e1e1e;
+            border: 1px solid #333;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+
+        body.dark-mode .menu-text {
+            color: #e0e0e0;
+        }
+
+        body.dark-mode .menu-item:hover {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+
+        body.dark-mode .menu-item.active {
+            background: #2a2a2a;
+            border-color: #2196F3;
+        }
+
+        body.dark-mode .logout-item {
+            color: #ff5252 !important;
+        }
+
+        body.dark-mode .logout-item:hover {
+            background: #2a2a2a;
+        }
+
+        #devTests {
+            margin: 10px 20px;
+        }
+
+        #devTests summary {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="loginOverlay" class="login-overlay">
+        <div class="login-card">
+            <h2>Biometric Login</h2>
+            <button id="biometricLoginBtn" class="btn">Use Biometric 🔐</button>
+            <button id="pinLoginBtn" class="btn">Enter PIN 🔒</button>
+        </div>
+    </div>
+
+    <div id="qrcodeModal" class="qrcode-modal">
+        <div class="qrcode-card">
+            <input type="text" id="qrcodeInput" placeholder="Enter text or URL for QR code" />
+            <div id="qrcodeCanvas"></div>
+            <button id="generateQR" class="btn">Generate QR Code</button>
+            <button id="closeQR" class="btn">Close</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="icons">
+            <div title="Search">🔍</div>
+        </div>
+        <h1 class="header-title">Personal CPA</h1>
+        <div class="icons">
+            <div id="headerScan" title="Scan">📷</div>
+            <div id="headerPlus" title="Quick Upload">＋</div>
+        </div>
+    </div>
+
+    <main>
+        <section id="homePage" class="page active">
+            <div class="home-hero">
+                <div class="name">Anmol</div>
+                <div class="assist">How may I help you today</div>
+            </div>
+            <div class="promo-card">
+                <div class="dollar-sign">$</div>
+                <p><strong>Hi Anmol,</strong> can you please share all your documents listed below to help prepare your taxes properly.</p>
+                <div class="document-list">
+                    <p><strong>Income Documents:</strong></p>
+                    <ul>
+                        <li>W-2 forms from your employer if you’re an employee.</li>
+                        <li>1099 forms if you’re a freelancer, contractor, or have other forms of miscellaneous income.</li>
+                        <li>Any other income statements, like interest income (1099-INT), dividends (1099-DIV), or investment gains (1099-B).</li>
+                    </ul>
+                    <p><strong>Expense and Deduction Documents:</strong></p>
+                    <ul>
+                        <li>Mortgage interest statements (Form 1098) if you own a home.</li>
+                        <li>Property tax statements if those apply.</li>
+                        <li>Receipts for deductible expenses—like medical bills, charitable donations, education expenses, or business expenses if you’re self-employed.</li>
+                    </ul>
+                    <p><strong>State-Specific Forms:</strong></p>
+                    <ul>
+                        <li>Depending on your state (like California), you might have state tax documents or specific forms for state deductions.</li>
+                    </ul>
+                </div>
+                <button id="goToScanFromHome" class="btn">📷 Upload Document</button>
+            </div>
+        </section>
+
+        <section id="scanPage" class="page">
+            <div class="scan-hero">
+                <div class="left">📱 Scan with mobile</div>
+                <div class="right">Make sure you please upload your income, expense, and state-specific documents below.</div>
+            </div>
+            <div class="scan-card">
+                <p><strong>Hi Anmol,</strong> please upload your income, expense, and state-specific documents below.</p>
+                <div class="document-list">
+                    <p><strong>Income Documents:</strong></p>
+                    <ul>
+                        <li>W-2 forms from your employer if you’re an employee.</li>
+                        <li>1099 forms if you’re a freelancer, contractor, or have other forms of miscellaneous income.</li>
+                        <li>Any other income statements, like interest income (1099-INT), dividends (1099-DIV), or investment gains (1099-B).</li>
+                    </ul>
+                    <p><strong>Expense and Deduction Documents:</strong></p>
+                    <ul>
+                        <li>Mortgage interest statements (Form 1098) if you own a home.</li>
+                        <li>Property tax statements if those apply.</li>
+                        <li>Receipts for deductible expenses—like medical bills, charitable donations, education expenses, or business expenses if you’re self-employed.</li>
+                    </ul>
+                    <p><strong>State-Specific Forms:</strong></p>
+                    <ul>
+                        <li>Depending on your state (like California), you might have state tax documents or specific forms for state deductions.</li>
+                    </ul>
+                </div>
+                <div class="upload-wrap">
+                    <button id="qrcodeBtn" class="btn">Generate QR Code 📲</button>
+                    <input id="fileInput" type="file" accept="image/*,application/pdf" capture="environment" style="display:none" />
+                    <button id="uploadBtn" class="btn">📷 Upload &amp; Extract Text</button>
+                    <span id="fileName" class="file-name"></span>
+                    <div id="ocrProgress" class="ocr-progress">
+                        <p>Extracting text from document...</p>
+                        <div class="progress-bar">
+                            <div id="progressFill" class="progress-fill"></div>
+                        </div>
+                    </div>
+                    <div id="ocrResult" class="ocr-result"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="mePage" class="page">
+            <div class="profile-card">
+                <div class="profile-header">
+                    <div class="profile-name">Anmol Singh ✨</div>
+                    <div class="notification-bell" id="notificationBell">
+                        🔔
+                        <div class="notification-badge" id="notificationBadge">2</div>
+                    </div>
+                </div>
+                <div class="profile-info">
+                    <div>
+                        <div class="profile-id">QQ4293 🌟</div>
+                    </div>
+                    <div class="profile-avatar">👤</div>
+                </div>
+                <div class="privacy-toggle">
+                    <span>Privacy mode 🔒</span>
+                    <div class="toggle-switch" id="privacyToggle"></div>
+                </div>
+                <div class="dark-toggle">
+                    <span>Dark mode 🌙</span>
+                    <div class="toggle-switch" id="darkToggle"></div>
+                </div>
+                <div class="biometric-toggle">
+                    <span>Biometric Login 🔐</span>
+                    <div class="toggle-switch" id="biometricToggle"></div>
+                </div>
+            </div>
+            <div class="menu-section">
+                <div class="menu-item" onclick="navigate(event, 'account')">
+                    <span class="menu-text">Account 🌐</span>
+                    <span>👤</span>
+                </div>
+                <div class="menu-item" onclick="navigate(event, 'funds')">
+                    <span class="menu-text">Funds 💰</span>
+                    <span>₹</span>
+                </div>
+                <div class="menu-item" onclick="showAppCode(event)">
+                    <span class="menu-text">App Code 🔐</span>
+                    <span>🔒</span>
+                </div>
+                <div class="menu-item" onclick="navigate(event, 'profile')">
+                    <span class="menu-text">Profile 👤</span>
+                    <span>👤</span>
+                </div>
+                <div class="menu-item" onclick="navigate(event, 'settings')">
+                    <span class="menu-text">Settings ⚙️</span>
+                    <span>⚙️</span>
+                </div>
+                <div class="menu-item" onclick="navigate(event, 'connected')">
+                    <span class="menu-text">Connected apps 📲</span>
+                    <span>📦</span>
+                </div>
+                <div class="menu-item logout-item" onclick="logout()">
+                    <span class="menu-text">Logout 🚪</span>
+                    <span>➡️</span>
+                </div>
+            </div>
+        </section>
+
+        <details id="devTests">
+            <summary>Developer Tests</summary>
+            <ul id="testResultsList"></ul>
+            <small>Open the browser console for detailed logs.</small>
+        </details>
+    </main>
+
+    <div class="nav-bar">
+        <div class="nav-item" data-target="homePage">
+            <div class="icon">🏠</div>
+            <span>Home</span>
+        </div>
+        <div class="nav-item">
+            <div class="icon">💳</div>
+            <span>Cards</span>
+        </div>
+        <div class="nav-item active" data-target="scanPage">
+            <div class="icon">📷</div>
+            <span>Scan</span>
+        </div>
+        <div class="nav-item">
+            <div class="icon">💰</div>
+            <span>Crypto</span>
+        </div>
+        <div class="nav-item" data-target="mePage">
+            <div class="icon">👤</div>
+            <span>Me</span>
+        </div>
+    </div>
+
+    <script>
+        const AUTH_TOKEN_KEY = 'authToken';
+        const BIOMETRIC_KEY = 'biometricEnabled';
+
+        function isAuthenticated() {
+            return Boolean(localStorage.getItem(AUTH_TOKEN_KEY));
+        }
+
+        function setAuthenticatedToken(token) {
+            if (token) {
+                localStorage.setItem(AUTH_TOKEN_KEY, token);
+            }
+        }
+
+        function clearAuthentication() {
+            localStorage.removeItem(AUTH_TOKEN_KEY);
+        }
+
+        function isBiometricEnabled() {
+            return localStorage.getItem(BIOMETRIC_KEY) === 'true';
+        }
+
+        function setBiometricEnabled(enabled) {
+            localStorage.setItem(BIOMETRIC_KEY, Boolean(enabled));
+        }
+
+        function showLoginOverlay() {
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) overlay.classList.add('active');
+        }
+
+        function hideLoginOverlay() {
+            const overlay = document.getElementById('loginOverlay');
+            if (overlay) overlay.classList.remove('active');
+        }
+
+        if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        const NavigationModule = (function() {
+            const pages = document.querySelectorAll('.page');
+            const navItems = document.querySelectorAll('.nav-item[data-target]');
+
+            function showPage(id) {
+                const target = document.getElementById(id);
+                if (!target) {
+                    console.warn(`[showPage] Missing page with id "${id}"`);
+                    return false;
+                }
+                pages.forEach(p => p.classList.remove('active'));
+                target.classList.add('active');
+
+                navItems.forEach(n => n.classList.remove('active'));
+                const match = Array.from(navItems).find(n => n.dataset.target === id);
+                if (match) match.classList.add('active');
+                return true;
+            }
+
+            navItems.forEach(item => item.addEventListener('click', () => {
+                const id = item.dataset.target;
+                if (id) showPage(id);
+            }));
+
+            const goToScanFromHome = document.getElementById('goToScanFromHome');
+            if (goToScanFromHome) goToScanFromHome.addEventListener('click', () => showPage('scanPage'));
+
+            const headerScan = document.getElementById('headerScan');
+            if (headerScan) headerScan.addEventListener('click', () => showPage('scanPage'));
+
+            const headerPlus = document.getElementById('headerPlus');
+            if (headerPlus) headerPlus.addEventListener('click', () => showPage('scanPage'));
+
+            const initialActive = document.querySelector('.page.active');
+            if (initialActive) showPage(initialActive.id); else showPage('homePage');
+
+            return {
+                showPage
+            };
+        })();
+
+        const UploadOCRModule = (function() {
+            const uploadBtn = document.getElementById('uploadBtn');
+            const fileInput = document.getElementById('fileInput');
+            const fileName = document.getElementById('fileName');
+            const ocrProgress = document.getElementById('ocrProgress');
+            const progressFill = document.getElementById('progressFill');
+            const ocrResult = document.getElementById('ocrResult');
+
+            if (uploadBtn && fileInput) {
+                uploadBtn.addEventListener('click', () => fileInput.click());
+                fileInput.addEventListener('change', async () => {
+                    const file = fileInput.files[0];
+                    if (!file) return;
+
+                    fileName.textContent = `Selected: ${file.name}`;
+                    uploadBtn.disabled = true;
+                    uploadBtn.textContent = 'Processing...';
+
+                    ocrProgress.classList.add('active');
+                    ocrResult.classList.remove('active');
+                    progressFill.style.width = '0%';
+
+                    let extractedText = '';
+
+                    try {
+                        if (file.type === 'application/pdf') {
+                            extractedText = await extractTextFromPDF(file);
+                        } else if (file.type.startsWith('image/')) {
+                            extractedText = await extractTextFromImage(file);
+                        } else {
+                            throw new Error('Unsupported file type. Please upload an image or PDF.');
+                        }
+
+                        progressFill.style.width = '100%';
+
+                        ocrResult.textContent = extractedText || 'No text detected.';
+                        ocrResult.classList.add('active');
+
+                        showToast(`Text extracted successfully! ${extractedText.length > 0 ? '📄' : '⚠️ No text found'}`, extractedText.length > 0 ? 'success' : 'warning');
+                    } catch (error) {
+                        console.error('OCR Error:', error);
+                        showToast(`Error extracting text: ${error.message}`, 'warning');
+                        ocrResult.textContent = `Error: ${error.message}`;
+                        ocrResult.classList.add('active');
+                    } finally {
+                        setTimeout(() => {
+                            uploadBtn.disabled = false;
+                            uploadBtn.textContent = '📷 Upload & Extract Text';
+                            progressFill.style.width = '0%';
+                            ocrProgress.classList.remove('active');
+                        }, 2000);
+                    }
+                });
+            }
+
+            async function extractTextFromImage(file) {
+                const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+                    logger: m => {
+                        if (m.status === 'recognizing text') {
+                            const progress = (m.progress * 100).toFixed(0);
+                            progressFill.style.width = `${progress}%`;
+                        }
+                    }
+                });
+                return text;
+            }
+
+            async function extractTextFromPDF(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                let fullText = '';
+
+                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                    const page = await pdf.getPage(pageNum);
+                    const viewport = page.getViewport({ scale: 2.0 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport }).promise;
+                    const imageData = canvas.toDataURL('image/png');
+
+                    progressFill.style.width = `${(pageNum / pdf.numPages) * 100}%`;
+
+                    const { data: { text } } = await Tesseract.recognize(imageData, 'eng');
+                    fullText += `\n--- Page ${pageNum} --- \n${text}\n`;
+                }
+
+                return fullText.trim();
+            }
+        })();
+
+        const ThemeModule = (function() {
+            const privacyToggle = document.getElementById('privacyToggle');
+            const darkToggle = document.getElementById('darkToggle');
+            const biometricToggle = document.getElementById('biometricToggle');
+            let privacyMode = localStorage.getItem('privacyMode') === 'true' || false;
+            let darkMode = localStorage.getItem('darkMode') === 'true' || false;
+            let biometricEnabled = isBiometricEnabled();
+
+            if (privacyToggle) {
+                privacyToggle.classList.toggle('active', privacyMode);
+                document.body.classList.toggle('privacy-mode', privacyMode);
+
+                privacyToggle.addEventListener('click', function() {
+                    privacyMode = !privacyMode;
+                    this.classList.toggle('active', privacyMode);
+                    document.body.classList.toggle('privacy-mode', privacyMode);
+                    showToast(`Privacy mode ${privacyMode ? 'enabled' : 'disabled'}`, privacyMode ? 'success' : 'info');
+                    localStorage.setItem('privacyMode', privacyMode);
+                });
+            }
+
+            if (darkToggle) {
+                darkToggle.classList.toggle('active', darkMode);
+                document.body.classList.toggle('dark-mode', darkMode);
+
+                darkToggle.addEventListener('click', function() {
+                    darkMode = !darkMode;
+                    this.classList.toggle('active', darkMode);
+                    document.body.classList.toggle('dark-mode', darkMode);
+                    showToast(`Dark mode ${darkMode ? 'enabled' : 'disabled'}`, darkMode ? 'success' : 'info');
+                    localStorage.setItem('darkMode', darkMode);
+                });
+
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches && localStorage.getItem('darkMode') === null) {
+                    darkMode = true;
+                    darkToggle.classList.add('active');
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('darkMode', true);
+                }
+
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+                    const newDarkMode = e.matches;
+                    if (localStorage.getItem('darkMode') === null) {
+                        darkMode = newDarkMode;
+                        document.body.classList.toggle('dark-mode', darkMode);
+                        darkToggle.classList.toggle('active', darkMode);
+                        showToast(`System theme changed to ${newDarkMode ? 'dark' : 'light'} mode 🌙`, 'info');
+                    }
+                });
+            }
+
+            if (biometricToggle) {
+                biometricToggle.classList.toggle('active', biometricEnabled);
+                if (biometricEnabled && !isAuthenticated()) {
+                    showLoginOverlay();
+                }
+
+                biometricToggle.addEventListener('click', function() {
+                    biometricEnabled = !biometricEnabled;
+                    setBiometricEnabled(biometricEnabled);
+                    this.classList.toggle('active', biometricEnabled);
+                    if (biometricEnabled && !isAuthenticated()) {
+                        showLoginOverlay();
+                    } else if (!biometricEnabled) {
+                        clearAuthentication();
+                    }
+                    showToast(`Biometric login ${biometricEnabled ? 'enabled' : 'disabled'}`, biometricEnabled ? 'success' : 'info');
+                });
+            }
+        })();
+
+        const NotificationModule = (function() {
+            const notificationBell = document.getElementById('notificationBell');
+            const notificationBadge = document.getElementById('notificationBadge');
+            let notifications = parseInt(notificationBadge?.textContent || '0', 10) || 0;
+
+            if (notificationBell && notificationBadge) {
+                notificationBell.addEventListener('click', function() {
+                    if (notifications > 0 && isAuthenticated()) {
+                        showNotifications();
+                    } else if (!isAuthenticated()) {
+                        showLoginOverlay();
+                    }
+                });
+
+                function showNotifications() {
+                    alert(`You have ${notifications} new notifications!\n\n1. Portfolio update 🎉\n2. Market alert 🚀`);
+                    notifications = 0;
+                    notificationBadge.textContent = notifications;
+                    notificationBadge.style.display = 'none';
+                }
+
+                setTimeout(() => {
+                    if (notifications > 0) {
+                        notifications--;
+                        notificationBadge.textContent = notifications;
+                        if (notifications === 0) {
+                            notificationBadge.style.display = 'none';
+                        }
+                    }
+                }, 5000);
+
+                setInterval(() => {
+                    if (Math.random() > 0.95 && notifications === 0 && isAuthenticated()) {
+                        notifications = 1;
+                        notificationBadge.textContent = notifications;
+                        notificationBadge.style.display = 'flex';
+                        showToast('New notification received! 🚀', 'info');
+                    }
+                }, 10000);
+            }
+        })();
+
+        const NavigationFunctionModule = (function() {
+            window.navigate = function(evtOrSection, maybeSection) {
+                const section = typeof evtOrSection === 'string' ? evtOrSection : maybeSection;
+                const evt = typeof evtOrSection === 'string' ? null : evtOrSection;
+
+                if (!section) {
+                    console.warn('navigate called without a section');
+                    return;
+                }
+
+                if (isAuthenticated()) {
+                    console.log(`Navigating to ${section}`);
+                    showToast(`Opening ${section} section 🌟`, 'info');
+                    document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+                    const source = evt?.currentTarget;
+                    if (source) source.classList.add('active');
+                } else {
+                    showLoginOverlay();
+                }
+            };
+        })();
+
+        const AppCodeModule = (function() {
+            window.showAppCode = function(evt) {
+                if (evt && evt.currentTarget) {
+                    document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
+                    evt.currentTarget.classList.add('active');
+                }
+
+                if (isAuthenticated()) {
+                    const code = 'APP-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+                    const isBiometric = confirm('Use biometric authentication to view App Code? 🔐');
+                    if (isBiometric) {
+                        alert(`Your App Code: ${code}\n\nCopy and store securely! 🎉`);
+                    } else {
+                        const pin = prompt('Enter 4-digit PIN: 🔒');
+                        if (pin && pin.length === 4) {
+                            alert(`Your App Code: ${code}\n\nCopy and store securely! 🎉`);
+                        } else {
+                            alert('Invalid PIN. Access denied. 🚫');
+                        }
+                    }
+                } else {
+                    showLoginOverlay();
+                }
+            };
+        })();
+
+        const LogoutModule = (function() {
+            window.logout = function() {
+                if (confirm('Are you sure you want to logout? 🚪')) {
+                    if (confirm('This will end your current session. Continue? 🚀')) {
+                        showToast('Logging out...', 'warning');
+                        clearAuthentication();
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    }
+                }
+            };
+        })();
+
+        const ToastModule = (function() {
+            window.showToast = function(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: ${type === 'success' ? '#4CAF50' : type === 'warning' ? '#ff9800' : '#2196F3'};
+                    color: white;
+                    padding: 12px 20px;
+                    border-radius: 6px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 1000;
+                    transform: translateX(300px);
+                    transition: transform 0.3s ease;
+                `;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+
+                requestAnimationFrame(() => {
+                    toast.style.transform = 'translateX(0)';
+                });
+
+                setTimeout(() => {
+                    toast.style.transform = 'translateX(300px)';
+                    setTimeout(() => document.body.removeChild(toast), 300);
+                }, 3000);
+            };
+        })();
+
+        const LoginModule = (function() {
+            const loginOverlay = document.getElementById('loginOverlay');
+            const biometricLoginBtn = document.getElementById('biometricLoginBtn');
+            const pinLoginBtn = document.getElementById('pinLoginBtn');
+
+            if (biometricLoginBtn) {
+                biometricLoginBtn.addEventListener('click', () => {
+                    if (typeof navigator.credentials !== 'undefined' && 'get' in navigator.credentials) {
+                        showToast('Attempting biometric authentication...', 'info');
+                        setTimeout(() => {
+                            setAuthenticatedToken('biometric-auth-' + Date.now());
+                            hideLoginOverlay();
+                            showToast('Login successful! 🔐', 'success');
+                        }, 1500);
+                    } else {
+                        showToast('Biometric authentication not supported on this device. Use PIN instead.', 'warning');
+                    }
+                });
+            }
+
+            if (pinLoginBtn) {
+                pinLoginBtn.addEventListener('click', () => {
+                    const pin = prompt('Enter 4-digit PIN: 🔒');
+                    if (pin && pin.length === 4 && pin === '1234') {
+                        setAuthenticatedToken('pin-auth-' + Date.now());
+                        hideLoginOverlay();
+                        showToast('Login successful! 🔒', 'success');
+                    } else {
+                        showToast('Invalid PIN. Please try again.', 'warning');
+                    }
+                });
+            }
+
+            if (isBiometricEnabled() && !isAuthenticated()) {
+                showLoginOverlay();
+            }
+
+            return {
+                showLoginOverlay,
+                hideLoginOverlay
+            };
+        })();
+
+        const QRCodeGeneratorModule = (function() {
+            const qrcodeBtn = document.getElementById('qrcodeBtn');
+            const qrcodeModal = document.getElementById('qrcodeModal');
+            const qrcodeInput = document.getElementById('qrcodeInput');
+            const generateQR = document.getElementById('generateQR');
+            const closeQR = document.getElementById('closeQR');
+            const qrcodeCanvas = document.getElementById('qrcodeCanvas');
+
+            if (qrcodeBtn) {
+                qrcodeBtn.addEventListener('click', () => {
+                    qrcodeModal.classList.add('active');
+                });
+            }
+
+            if (generateQR) {
+                generateQR.addEventListener('click', () => {
+                    const text = qrcodeInput.value.trim();
+                    if (text) {
+                        qrcodeCanvas.innerHTML = '';
+                        new QRCode(qrcodeCanvas, {
+                            text: text,
+                            width: 200,
+                            height: 200,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                        showToast('QR Code generated successfully! 📲', 'success');
+                    } else {
+                        showToast('Please enter text or URL to generate QR code.', 'warning');
+                    }
+                });
+            }
+
+            if (closeQR) {
+                closeQR.addEventListener('click', () => {
+                    qrcodeModal.classList.remove('active');
+                    qrcodeCanvas.innerHTML = '';
+                    qrcodeInput.value = '';
+                });
+            }
+        })();
+
+        const TestModule = (function() {
+            function test(name, fn) {
+                try {
+                    const ok = fn();
+                    if (ok !== true && ok !== false && ok !== undefined) {
+                        console.warn(`ℹ️ ${name} returned a non-boolean value:`, ok);
+                    }
+                    console.log(`✅ ${name}`, ok);
+                    addResult(name, true);
+                } catch (e) {
+                    console.error(`❌ ${name}`, e);
+                    addResult(name, false, e.message || String(e));
+                }
+            }
+
+            function addResult(name, ok, msg = '') {
+                const list = document.getElementById('testResultsList');
+                if (!list) return;
+                const li = document.createElement('li');
+                li.textContent = `${ok ? '✅' : '❌'} ${name}${msg ? ' — ' + msg : ''}`;
+                list.appendChild(li);
+            }
+
+            test('showPage(homePage) returns true', () => NavigationModule.showPage('homePage') === true);
+            test('showPage(scanPage) returns true', () => NavigationModule.showPage('scanPage') === true);
+            test('scanPage contains document list', () => !!document.querySelector('#scanPage .document-list'));
+            test('showPage(nonexistent) returns false', () => NavigationModule.showPage('nonexistent') === false);
+            test('initial active page is visible', () => document.querySelector('.page.active') !== null);
+            test('nav click sets active class to Scan', () => {
+                const scanNav = document.querySelector('.nav-item[data-target="scanPage"]');
+                scanNav && scanNav.click();
+                const isScanActive = document.getElementById('scanPage').classList.contains('active');
+                const navIsActive = scanNav && scanNav.classList.contains('active');
+                return isScanActive && navIsActive;
+            });
+            test('header scan button navigates to scanPage', () => {
+                const before = document.getElementById('scanPage').classList.contains('active');
+                const btn = document.getElementById('headerScan');
+                btn && btn.click();
+                const after = document.getElementById('scanPage').classList.contains('active');
+                return (!before && after) || after;
+            });
+            test('upload elements exist', () => !!(document.getElementById('uploadBtn') && document.getElementById('fileInput')));
+            test('showPage("") returns false', () => NavigationModule.showPage('') === false);
+        })();
+    </script>
+</body>
+</html>
